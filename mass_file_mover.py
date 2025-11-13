@@ -2,15 +2,252 @@ import sys
 import os
 import shutil
 import re
+import configparser
 from pathlib import Path
 from typing import List, Optional, Tuple
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLineEdit, QTextEdit, QLabel, QFileDialog,
-    QProgressBar, QMessageBox
+    QProgressBar, QMessageBox, QDialog, QFormLayout, QSpinBox,
+    QCheckBox, QDialogButtonBox, QGroupBox
 )
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtGui import QFont
+
+
+class Settings:
+    """Manages application settings with INI file persistence"""
+    
+    def __init__(self):
+        self.config_file = "romsort_settings.ini"
+        self.config = configparser.ConfigParser()
+        self.load_settings()
+    
+    def load_settings(self):
+        """Load settings from INI file or create defaults"""
+        if os.path.exists(self.config_file):
+            self.config.read(self.config_file)
+        else:
+            self.create_default_settings()
+    
+    def create_default_settings(self):
+        """Create default settings"""
+        self.config['RegionPriority'] = {
+            'europe_priority': '1000',
+            'usa_priority': '800',
+            'world_priority': '700',
+            'english_priority': '650'
+        }
+        
+        self.config['Filtering'] = {
+            'reject_japan_only': 'true',
+            'reject_single_country': 'true',  # Reject Germany, France, etc. alone
+            'reject_beta': 'true',
+            'reject_prototype': 'true',
+            'reject_alpha': 'true',
+            'reject_demo': 'true',
+            'reject_virtual_console': 'true',
+            'reject_alt_versions': 'true',
+            'reject_revisions': 'true',
+            'reject_samples': 'true'
+        }
+        
+        self.config['AcceptableRegions'] = {
+            'regions': 'Europe, USA, World, En, English'  # Comma-separated
+        }
+        
+        self.config['RejectedCountries'] = {
+            'countries': 'Germany, France, Spain, Italy, Japan, Australia, Brazil, Korea'  # When alone
+        }
+        
+        self.save_settings()
+    
+    def save_settings(self):
+        """Save settings to INI file"""
+        with open(self.config_file, 'w') as f:
+            self.config.write(f)
+    
+    def get_int(self, section, key, default=0):
+        return self.config.getint(section, key, fallback=default)
+    
+    def get_bool(self, section, key, default=False):
+        return self.config.getboolean(section, key, fallback=default)
+    
+    def get_str(self, section, key, default=''):
+        return self.config.get(section, key, fallback=default)
+    
+    def get_list(self, section, key, default=None):
+        """Get comma-separated list as Python list"""
+        if default is None:
+            default = []
+        value = self.get_str(section, key, '')
+        if not value:
+            return default
+        return [item.strip().lower() for item in value.split(',')]
+    
+    def set_value(self, section, key, value):
+        if section not in self.config:
+            self.config[section] = {}
+        self.config[section][key] = str(value)
+
+
+class SettingsDialog(QDialog):
+    """Dialog for configuring ROM filtering settings"""
+    
+    def __init__(self, settings: Settings, parent=None):
+        super().__init__(parent)
+        self.settings = settings
+        self.setWindowTitle("RomSort Settings")
+        self.setMinimumWidth(500)
+        self.init_ui()
+    
+    def init_ui(self):
+        layout = QVBoxLayout()
+        
+        # Region Priority Group
+        priority_group = QGroupBox("Region Priority (Higher = Better)")
+        priority_layout = QFormLayout()
+        
+        self.europe_spin = QSpinBox()
+        self.europe_spin.setRange(0, 2000)
+        self.europe_spin.setValue(self.settings.get_int('RegionPriority', 'europe_priority', 1000))
+        priority_layout.addRow("Europe Priority:", self.europe_spin)
+        
+        self.usa_spin = QSpinBox()
+        self.usa_spin.setRange(0, 2000)
+        self.usa_spin.setValue(self.settings.get_int('RegionPriority', 'usa_priority', 800))
+        priority_layout.addRow("USA Priority:", self.usa_spin)
+        
+        self.world_spin = QSpinBox()
+        self.world_spin.setRange(0, 2000)
+        self.world_spin.setValue(self.settings.get_int('RegionPriority', 'world_priority', 700))
+        priority_layout.addRow("World Priority:", self.world_spin)
+        
+        self.english_spin = QSpinBox()
+        self.english_spin.setRange(0, 2000)
+        self.english_spin.setValue(self.settings.get_int('RegionPriority', 'english_priority', 650))
+        priority_layout.addRow("English Priority:", self.english_spin)
+        
+        priority_group.setLayout(priority_layout)
+        layout.addWidget(priority_group)
+        
+        # Filtering Options Group
+        filter_group = QGroupBox("Filtering Options")
+        filter_layout = QVBoxLayout()
+        
+        self.reject_japan_check = QCheckBox("Reject Japan-only ROMs")
+        self.reject_japan_check.setChecked(self.settings.get_bool('Filtering', 'reject_japan_only', True))
+        filter_layout.addWidget(self.reject_japan_check)
+        
+        self.reject_country_check = QCheckBox("Reject single-country ROMs (Germany, France, etc.)")
+        self.reject_country_check.setChecked(self.settings.get_bool('Filtering', 'reject_single_country', True))
+        filter_layout.addWidget(self.reject_country_check)
+        
+        self.reject_beta_check = QCheckBox("Reject Beta versions")
+        self.reject_beta_check.setChecked(self.settings.get_bool('Filtering', 'reject_beta', True))
+        filter_layout.addWidget(self.reject_beta_check)
+        
+        self.reject_proto_check = QCheckBox("Reject Prototype/Proto versions")
+        self.reject_proto_check.setChecked(self.settings.get_bool('Filtering', 'reject_prototype', True))
+        filter_layout.addWidget(self.reject_proto_check)
+        
+        self.reject_alpha_check = QCheckBox("Reject Alpha versions")
+        self.reject_alpha_check.setChecked(self.settings.get_bool('Filtering', 'reject_alpha', True))
+        filter_layout.addWidget(self.reject_alpha_check)
+        
+        self.reject_demo_check = QCheckBox("Reject Demo versions")
+        self.reject_demo_check.setChecked(self.settings.get_bool('Filtering', 'reject_demo', True))
+        filter_layout.addWidget(self.reject_demo_check)
+        
+        self.reject_vc_check = QCheckBox("Reject Virtual Console versions")
+        self.reject_vc_check.setChecked(self.settings.get_bool('Filtering', 'reject_virtual_console', True))
+        filter_layout.addWidget(self.reject_vc_check)
+        
+        self.reject_alt_check = QCheckBox("Reject Alt versions (Alt 1, Alt 2, etc.)")
+        self.reject_alt_check.setChecked(self.settings.get_bool('Filtering', 'reject_alt_versions', True))
+        filter_layout.addWidget(self.reject_alt_check)
+        
+        self.reject_rev_check = QCheckBox("Reject Revision versions (Rev 1, V1.0, etc.)")
+        self.reject_rev_check.setChecked(self.settings.get_bool('Filtering', 'reject_revisions', True))
+        filter_layout.addWidget(self.reject_rev_check)
+        
+        self.reject_sample_check = QCheckBox("Reject Samples/Promos")
+        self.reject_sample_check.setChecked(self.settings.get_bool('Filtering', 'reject_samples', True))
+        filter_layout.addWidget(self.reject_sample_check)
+        
+        filter_group.setLayout(filter_layout)
+        layout.addWidget(filter_group)
+        
+        # Advanced Group
+        advanced_group = QGroupBox("Advanced (Comma-separated lists)")
+        advanced_layout = QFormLayout()
+        
+        self.acceptable_regions = QLineEdit()
+        self.acceptable_regions.setText(self.settings.get_str('AcceptableRegions', 'regions', 'Europe, USA, World, En, English'))
+        advanced_layout.addRow("Acceptable Regions:", self.acceptable_regions)
+        
+        self.rejected_countries = QLineEdit()
+        self.rejected_countries.setText(self.settings.get_str('RejectedCountries', 'countries', 'Germany, France, Spain, Italy, Japan, Australia, Brazil, Korea'))
+        advanced_layout.addRow("Reject When Alone:", self.rejected_countries)
+        
+        advanced_group.setLayout(advanced_layout)
+        layout.addWidget(advanced_group)
+        
+        # Buttons
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | 
+            QDialogButtonBox.StandardButton.Cancel |
+            QDialogButtonBox.StandardButton.RestoreDefaults
+        )
+        button_box.accepted.connect(self.save_settings)
+        button_box.rejected.connect(self.reject)
+        button_box.button(QDialogButtonBox.StandardButton.RestoreDefaults).clicked.connect(self.restore_defaults)
+        layout.addWidget(button_box)
+        
+        self.setLayout(layout)
+    
+    def save_settings(self):
+        """Save all settings and close dialog"""
+        # Region priorities
+        self.settings.set_value('RegionPriority', 'europe_priority', self.europe_spin.value())
+        self.settings.set_value('RegionPriority', 'usa_priority', self.usa_spin.value())
+        self.settings.set_value('RegionPriority', 'world_priority', self.world_spin.value())
+        self.settings.set_value('RegionPriority', 'english_priority', self.english_spin.value())
+        
+        # Filtering options
+        self.settings.set_value('Filtering', 'reject_japan_only', self.reject_japan_check.isChecked())
+        self.settings.set_value('Filtering', 'reject_single_country', self.reject_country_check.isChecked())
+        self.settings.set_value('Filtering', 'reject_beta', self.reject_beta_check.isChecked())
+        self.settings.set_value('Filtering', 'reject_prototype', self.reject_proto_check.isChecked())
+        self.settings.set_value('Filtering', 'reject_alpha', self.reject_alpha_check.isChecked())
+        self.settings.set_value('Filtering', 'reject_demo', self.reject_demo_check.isChecked())
+        self.settings.set_value('Filtering', 'reject_virtual_console', self.reject_vc_check.isChecked())
+        self.settings.set_value('Filtering', 'reject_alt_versions', self.reject_alt_check.isChecked())
+        self.settings.set_value('Filtering', 'reject_revisions', self.reject_rev_check.isChecked())
+        self.settings.set_value('Filtering', 'reject_samples', self.reject_sample_check.isChecked())
+        
+        # Advanced
+        self.settings.set_value('AcceptableRegions', 'regions', self.acceptable_regions.text())
+        self.settings.set_value('RejectedCountries', 'countries', self.rejected_countries.text())
+        
+        self.settings.save_settings()
+        self.accept()
+    
+    def restore_defaults(self):
+        """Restore default settings"""
+        reply = QMessageBox.question(
+            self,
+            "Restore Defaults",
+            "Are you sure you want to restore default settings?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            self.settings.create_default_settings()
+            self.close()
+            # Reopen dialog with new defaults
+            new_dialog = SettingsDialog(self.settings, self.parent())
+            new_dialog.exec()
 
 
 class ROMMatcherWorker(QThread):
@@ -19,11 +256,12 @@ class ROMMatcherWorker(QThread):
     status = pyqtSignal(str)
     finished = pyqtSignal(list)  # list of results
     
-    def __init__(self, source_dir: str, target_dir: str, rom_names: List[str]):
+    def __init__(self, source_dir: str, target_dir: str, rom_names: List[str], settings: Settings):
         super().__init__()
         self.source_dir = source_dir
         self.target_dir = target_dir
         self.rom_names = rom_names
+        self.settings = settings
         self.is_running = True
         
     def stop(self):
@@ -120,15 +358,7 @@ class ROMMatcherWorker(QThread):
     def calculate_region_priority(self, filename: str) -> int:
         """
         Calculate priority score for a ROM file based on region tags.
-        Higher score = better match
-        
-        Priority order:
-        1. Europe (highest)
-        2. USA
-        3. World
-        4. En/English
-        
-        Reject unwanted versions and Japan-only ROMs
+        Uses settings for customizable filtering and priorities.
         """
         filename_lower = filename.lower()
         score = 0
@@ -136,14 +366,26 @@ class ROMMatcherWorker(QThread):
         # Extract all parentheses content
         parentheses = re.findall(r'\([^)]+\)', filename_lower)
         
-        # Check for unwanted tags in ANY parentheses (heavy penalty)
-        unwanted_tags = [
-            'beta', 'proto', 'prototype', 'alpha', 'demo',
-            'switch online', 'wii u virtual console', 'wii virtual console',
-            'sample', 'promo', 'unl', 'pirate', 'hack', 'homebrew',
-            'alt', 'alt 1', 'alt 2', 'alt 3', 'rev ', 'v1.', 'v2.'
-        ]
+        # Build unwanted tags list based on settings
+        unwanted_tags = []
+        if self.settings.get_bool('Filtering', 'reject_beta'):
+            unwanted_tags.append('beta')
+        if self.settings.get_bool('Filtering', 'reject_prototype'):
+            unwanted_tags.extend(['proto', 'prototype'])
+        if self.settings.get_bool('Filtering', 'reject_alpha'):
+            unwanted_tags.append('alpha')
+        if self.settings.get_bool('Filtering', 'reject_demo'):
+            unwanted_tags.append('demo')
+        if self.settings.get_bool('Filtering', 'reject_virtual_console'):
+            unwanted_tags.extend(['switch online', 'wii u virtual console', 'wii virtual console', 'virtual console'])
+        if self.settings.get_bool('Filtering', 'reject_alt_versions'):
+            unwanted_tags.extend(['alt', 'alt 1', 'alt 2', 'alt 3'])
+        if self.settings.get_bool('Filtering', 'reject_revisions'):
+            unwanted_tags.extend(['rev ', 'rev 1', 'rev 2', 'v1.', 'v2.', 'v3.'])
+        if self.settings.get_bool('Filtering', 'reject_samples'):
+            unwanted_tags.extend(['sample', 'promo', 'unl', 'pirate', 'hack', 'homebrew'])
         
+        # Check for unwanted tags
         for paren in parentheses:
             for tag in unwanted_tags:
                 if tag in paren:
@@ -151,45 +393,71 @@ class ROMMatcherWorker(QThread):
         
         # If there are 2+ parentheses, check if second one is valid
         if len(parentheses) >= 2:
-            # Valid second parentheses must contain region info
             second_paren = parentheses[1]
-            valid_second = any(region in second_paren for region in 
-                             ['europe', 'eu', 'usa', 'us', 'world', 'en', 'english', 'japan'])
+            acceptable_regions_lower = [r.lower() for r in self.settings.get_list('AcceptableRegions', 'regions')]
+            valid_second = any(region in second_paren for region in acceptable_regions_lower)
             if not valid_second:
                 return -1000  # Reject if second parentheses is not region-related
         
-        # Check if it's Japan-only (reject these)
-        has_japan = any('japan' in p for p in parentheses)
-        has_acceptable_region = any(
-            region in filename_lower 
-            for region in ['europe', 'usa', 'world', '(en)', 'english']
-        )
+        # Get acceptable regions and rejected countries from settings
+        acceptable_regions = self.settings.get_list('AcceptableRegions', 'regions', ['europe', 'usa', 'world', 'en', 'english'])
+        rejected_countries = self.settings.get_list('RejectedCountries', 'countries', ['germany', 'france', 'spain', 'italy', 'japan'])
         
-        if has_japan and not has_acceptable_region:
-            return -1000  # Reject Japan-only ROMs
+        # Check for single-country rejection
+        if self.settings.get_bool('Filtering', 'reject_single_country', True):
+            # Check if ROM only has a rejected country and no acceptable regions
+            has_rejected_country_only = False
+            for country in rejected_countries:
+                if any(country in p for p in parentheses):
+                    # Check if it also has an acceptable region
+                    has_acceptable = any(
+                        any(region in p for region in acceptable_regions)
+                        for p in parentheses
+                    )
+                    if not has_acceptable:
+                        has_rejected_country_only = True
+                        break
+            
+            if has_rejected_country_only:
+                return -1000  # Reject single-country ROMs
         
-        # Region priority scoring
-        # Check for Europe (highest priority)
+        # Special handling for Japan-only
+        if self.settings.get_bool('Filtering', 'reject_japan_only', True):
+            has_japan = any('japan' in p for p in parentheses)
+            has_acceptable_region = any(
+                any(region in p for region in acceptable_regions)
+                for p in parentheses
+            )
+            if has_japan and not has_acceptable_region:
+                return -1000  # Reject Japan-only ROMs
+        
+        # Region priority scoring (from settings)
+        europe_priority = self.settings.get_int('RegionPriority', 'europe_priority', 1000)
+        usa_priority = self.settings.get_int('RegionPriority', 'usa_priority', 800)
+        world_priority = self.settings.get_int('RegionPriority', 'world_priority', 700)
+        english_priority = self.settings.get_int('RegionPriority', 'english_priority', 650)
+        
+        # Check for Europe
         if re.search(r'\(.*europe.*\)', filename_lower):
-            score += 1000
+            score += europe_priority
         elif re.search(r'\(.*\beu\b.*\)', filename_lower):
-            score += 950
+            score += europe_priority - 50
         
         # Check for USA
         if re.search(r'\(.*usa.*\)', filename_lower):
-            score += 800
+            score += usa_priority
         elif re.search(r'\(.*\bus\b.*\)', filename_lower):
-            score += 750
+            score += usa_priority - 50
         
         # Check for World
         if re.search(r'\(.*world.*\)', filename_lower):
-            score += 700
+            score += world_priority
         
         # Check for English
         if re.search(r'\(.*\ben\b.*\)', filename_lower):
-            score += 650
+            score += english_priority
         elif re.search(r'\(.*english.*\)', filename_lower):
-            score += 650
+            score += english_priority
         
         # Bonus for Europe+USA combined
         if 'europe' in filename_lower and 'usa' in filename_lower:
@@ -297,6 +565,7 @@ class MassFileMover(QMainWindow):
     def __init__(self):
         super().__init__()
         self.worker = None
+        self.settings = Settings()
         self.init_ui()
         
     def init_ui(self):
@@ -374,12 +643,17 @@ class MassFileMover(QMainWindow):
         self.stop_btn.setEnabled(False)
         self.stop_btn.setMinimumHeight(40)
         
+        self.settings_btn = QPushButton("⚙️ Settings")
+        self.settings_btn.clicked.connect(self.open_settings)
+        self.settings_btn.setMinimumHeight(40)
+        
         self.clear_btn = QPushButton("Clear Results")
         self.clear_btn.clicked.connect(self.clear_results)
         self.clear_btn.setMinimumHeight(40)
         
         button_layout.addWidget(self.start_btn)
         button_layout.addWidget(self.stop_btn)
+        button_layout.addWidget(self.settings_btn)
         button_layout.addWidget(self.clear_btn)
         layout.addLayout(button_layout)
         
@@ -449,11 +723,19 @@ class MassFileMover(QMainWindow):
         self.progress_bar.setValue(0)
         
         # Create and start worker thread
-        self.worker = ROMMatcherWorker(source_dir, target_dir, rom_names)
+        self.worker = ROMMatcherWorker(source_dir, target_dir, rom_names, self.settings)
         self.worker.progress.connect(self.update_progress)
         self.worker.status.connect(self.update_status)
         self.worker.finished.connect(self.processing_finished)
         self.worker.start()
+    
+    def open_settings(self):
+        """Open settings dialog"""
+        dialog = SettingsDialog(self.settings, self)
+        if dialog.exec():
+            # Settings were saved, reload them
+            self.settings.load_settings()
+            QMessageBox.information(self, "Settings Saved", "Your settings have been saved and will be used for the next processing.")
     
     def stop_processing(self):
         if self.worker:
