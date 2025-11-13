@@ -39,25 +39,27 @@ class Settings:
             'english_priority': '650'
         }
         
-        self.config['Filtering'] = {
-            'reject_japan_only': 'true',
-            'reject_single_country': 'true',  # Reject Germany, France, etc. alone
-            'reject_beta': 'true',
-            'reject_prototype': 'true',
-            'reject_alpha': 'true',
-            'reject_demo': 'true',
-            'reject_virtual_console': 'true',
-            'reject_alt_versions': 'true',
-            'reject_revisions': 'true',
-            'reject_samples': 'true'
-        }
-        
         self.config['AcceptableRegions'] = {
             'regions': 'Europe, USA, World, En, English'  # Comma-separated
         }
         
         self.config['RejectedCountries'] = {
-            'countries': 'Germany, France, Spain, Italy, Japan, Australia, Brazil, Korea'  # When alone
+            'countries': 'Germany, France, Spain, Italy, Japan, Australia, Brazil, Korea',  # When alone
+            'reject_when_alone': 'true'
+        }
+        
+        # Custom rejection rules - users can edit these directly!
+        self.config['CustomRejectRules'] = {
+            'rule_1': 'beta',
+            'rule_2': 'proto, prototype',
+            'rule_3': 'alpha',
+            'rule_4': 'demo',
+            'rule_5': 'switch online, wii u virtual console, wii virtual console, virtual console',
+            'rule_6': 'alt, alt 1, alt 2, alt 3',
+            'rule_7': 'rev , rev 1, rev 2',
+            'rule_8': 'v1., v2., v3.',
+            'rule_9': 'sample, promo',
+            'rule_10': 'unl, pirate, hack, homebrew'
         }
         
         self.save_settings()
@@ -89,6 +91,27 @@ class Settings:
         if section not in self.config:
             self.config[section] = {}
         self.config[section][key] = str(value)
+    
+    def get_custom_reject_rules(self):
+        """Get all custom rejection rules as a list of tag lists"""
+        if 'CustomRejectRules' not in self.config:
+            return []
+        
+        rules = []
+        for key in self.config['CustomRejectRules']:
+            rule_value = self.config['CustomRejectRules'][key]
+            # Split by comma and clean up
+            tags = [tag.strip().lower() for tag in rule_value.split(',') if tag.strip()]
+            if tags:
+                rules.append(tags)
+        return rules
+    
+    def set_custom_reject_rules(self, rules_list):
+        """Set custom rejection rules from list of strings"""
+        self.config['CustomRejectRules'] = {}
+        for idx, rule in enumerate(rules_list, start=1):
+            if rule.strip():
+                self.set_value('CustomRejectRules', f'rule_{idx}', rule.strip())
 
 
 class SettingsDialog(QDialog):
@@ -98,11 +121,22 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.settings = settings
         self.setWindowTitle("RomSort Settings")
-        self.setMinimumWidth(500)
+        self.setMinimumWidth(600)
+        self.setMinimumHeight(600)
+        self.rule_editors = []  # Track rule text fields
         self.init_ui()
     
     def init_ui(self):
+        from PyQt6.QtWidgets import QTabWidget, QScrollArea
+        
         layout = QVBoxLayout()
+        
+        # Create tab widget
+        tabs = QTabWidget()
+        
+        # === BASIC TAB ===
+        basic_tab = QWidget()
+        basic_layout = QVBoxLayout()
         
         # Region Priority Group
         priority_group = QGroupBox("Region Priority (Higher = Better)")
@@ -129,69 +163,104 @@ class SettingsDialog(QDialog):
         priority_layout.addRow("English Priority:", self.english_spin)
         
         priority_group.setLayout(priority_layout)
-        layout.addWidget(priority_group)
+        basic_layout.addWidget(priority_group)
         
-        # Filtering Options Group
-        filter_group = QGroupBox("Filtering Options")
-        filter_layout = QVBoxLayout()
-        
-        self.reject_japan_check = QCheckBox("Reject Japan-only ROMs")
-        self.reject_japan_check.setChecked(self.settings.get_bool('Filtering', 'reject_japan_only', True))
-        filter_layout.addWidget(self.reject_japan_check)
-        
-        self.reject_country_check = QCheckBox("Reject single-country ROMs (Germany, France, etc.)")
-        self.reject_country_check.setChecked(self.settings.get_bool('Filtering', 'reject_single_country', True))
-        filter_layout.addWidget(self.reject_country_check)
-        
-        self.reject_beta_check = QCheckBox("Reject Beta versions")
-        self.reject_beta_check.setChecked(self.settings.get_bool('Filtering', 'reject_beta', True))
-        filter_layout.addWidget(self.reject_beta_check)
-        
-        self.reject_proto_check = QCheckBox("Reject Prototype/Proto versions")
-        self.reject_proto_check.setChecked(self.settings.get_bool('Filtering', 'reject_prototype', True))
-        filter_layout.addWidget(self.reject_proto_check)
-        
-        self.reject_alpha_check = QCheckBox("Reject Alpha versions")
-        self.reject_alpha_check.setChecked(self.settings.get_bool('Filtering', 'reject_alpha', True))
-        filter_layout.addWidget(self.reject_alpha_check)
-        
-        self.reject_demo_check = QCheckBox("Reject Demo versions")
-        self.reject_demo_check.setChecked(self.settings.get_bool('Filtering', 'reject_demo', True))
-        filter_layout.addWidget(self.reject_demo_check)
-        
-        self.reject_vc_check = QCheckBox("Reject Virtual Console versions")
-        self.reject_vc_check.setChecked(self.settings.get_bool('Filtering', 'reject_virtual_console', True))
-        filter_layout.addWidget(self.reject_vc_check)
-        
-        self.reject_alt_check = QCheckBox("Reject Alt versions (Alt 1, Alt 2, etc.)")
-        self.reject_alt_check.setChecked(self.settings.get_bool('Filtering', 'reject_alt_versions', True))
-        filter_layout.addWidget(self.reject_alt_check)
-        
-        self.reject_rev_check = QCheckBox("Reject Revision versions (Rev 1, V1.0, etc.)")
-        self.reject_rev_check.setChecked(self.settings.get_bool('Filtering', 'reject_revisions', True))
-        filter_layout.addWidget(self.reject_rev_check)
-        
-        self.reject_sample_check = QCheckBox("Reject Samples/Promos")
-        self.reject_sample_check.setChecked(self.settings.get_bool('Filtering', 'reject_samples', True))
-        filter_layout.addWidget(self.reject_sample_check)
-        
-        filter_group.setLayout(filter_layout)
-        layout.addWidget(filter_group)
-        
-        # Advanced Group
-        advanced_group = QGroupBox("Advanced (Comma-separated lists)")
-        advanced_layout = QFormLayout()
+        # Region Filtering Group
+        region_group = QGroupBox("Region Filtering")
+        region_layout = QFormLayout()
         
         self.acceptable_regions = QLineEdit()
         self.acceptable_regions.setText(self.settings.get_str('AcceptableRegions', 'regions', 'Europe, USA, World, En, English'))
-        advanced_layout.addRow("Acceptable Regions:", self.acceptable_regions)
+        self.acceptable_regions.setPlaceholderText("Comma-separated list of acceptable regions")
+        region_layout.addRow("Acceptable Regions:", self.acceptable_regions)
         
         self.rejected_countries = QLineEdit()
         self.rejected_countries.setText(self.settings.get_str('RejectedCountries', 'countries', 'Germany, France, Spain, Italy, Japan, Australia, Brazil, Korea'))
-        advanced_layout.addRow("Reject When Alone:", self.rejected_countries)
+        self.rejected_countries.setPlaceholderText("Countries to reject when appearing alone")
+        region_layout.addRow("Reject When Alone:", self.rejected_countries)
         
-        advanced_group.setLayout(advanced_layout)
-        layout.addWidget(advanced_group)
+        self.reject_country_check = QCheckBox("Enable single-country rejection")
+        self.reject_country_check.setChecked(self.settings.get_bool('RejectedCountries', 'reject_when_alone', True))
+        region_layout.addRow("", self.reject_country_check)
+        
+        region_group.setLayout(region_layout)
+        basic_layout.addWidget(region_group)
+        
+        basic_layout.addStretch()
+        basic_tab.setLayout(basic_layout)
+        tabs.addTab(basic_tab, "Basic")
+        
+        # === ADVANCED TAB (Custom Rules) ===
+        advanced_tab = QWidget()
+        advanced_layout = QVBoxLayout()
+        
+        # Custom Rules Group (matching Basic tab style)
+        rules_group = QGroupBox("Custom Rejection Rules")
+        rules_group_layout = QVBoxLayout()
+        
+        # Instructions
+        instructions = QLabel(
+            "Add your own filtering rules below. Each rule can contain multiple tags separated by commas.<br>"
+            "ROMs matching ANY tag in ANY rule will be <b>REJECTED</b>.<br><br>"
+            "<i>Examples:</i> <code>beta, beta 1, beta 2</code> • <code>virtual console</code> • <code>alt, alt 1</code><br>"
+            "<b>Leave a rule empty to disable it.</b>"
+        )
+        instructions.setWordWrap(True)
+        rules_group_layout.addWidget(instructions)
+        
+        # Scrollable rules area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setMinimumHeight(250)
+        
+        rules_widget = QWidget()
+        self.rules_layout = QVBoxLayout()
+        
+        # Load existing rules
+        if 'CustomRejectRules' in self.settings.config:
+            for key in sorted(self.settings.config['CustomRejectRules'].keys()):
+                rule_value = self.settings.config['CustomRejectRules'][key]
+                self.add_rule_editor(rule_value)
+        else:
+            # Add some default empty rules
+            for _ in range(3):
+                self.add_rule_editor("")
+        
+        rules_widget.setLayout(self.rules_layout)
+        scroll.setWidget(rules_widget)
+        rules_group_layout.addWidget(scroll)
+        
+        # Add/Remove rule buttons
+        rule_buttons = QHBoxLayout()
+        add_rule_btn = QPushButton("➕ Add Rule")
+        add_rule_btn.clicked.connect(lambda: self.add_rule_editor(""))
+        remove_rule_btn = QPushButton("➖ Remove Last Rule")
+        remove_rule_btn.clicked.connect(self.remove_last_rule)
+        rule_buttons.addWidget(add_rule_btn)
+        rule_buttons.addWidget(remove_rule_btn)
+        rule_buttons.addStretch()
+        rules_group_layout.addLayout(rule_buttons)
+        
+        rules_group.setLayout(rules_group_layout)
+        advanced_layout.addWidget(rules_group)
+        
+        # Active Rules Summary Group
+        summary_group = QGroupBox("Active Filters Summary")
+        summary_layout = QVBoxLayout()
+        
+        self.active_rules_label = QLabel()
+        self.active_rules_label.setWordWrap(True)
+        self.update_active_rules_summary()
+        summary_layout.addWidget(self.active_rules_label)
+        
+        summary_group.setLayout(summary_layout)
+        advanced_layout.addWidget(summary_group)
+        
+        advanced_layout.addStretch()
+        advanced_tab.setLayout(advanced_layout)
+        tabs.addTab(advanced_tab, "Advanced Filtering")
+        
+        layout.addWidget(tabs)
         
         # Buttons
         button_box = QDialogButtonBox(
@@ -206,6 +275,47 @@ class SettingsDialog(QDialog):
         
         self.setLayout(layout)
     
+    def add_rule_editor(self, initial_value=""):
+        """Add a new rule editor field"""
+        rule_line = QLineEdit()
+        rule_line.setText(initial_value)
+        rule_line.setPlaceholderText("Enter tags separated by commas (e.g., beta, proto, alpha)")
+        rule_line.textChanged.connect(self.update_active_rules_summary)
+        self.rules_layout.addWidget(rule_line)
+        self.rule_editors.append(rule_line)
+    
+    def remove_last_rule(self):
+        """Remove the last rule editor"""
+        if len(self.rule_editors) > 0:
+            editor = self.rule_editors.pop()
+            self.rules_layout.removeWidget(editor)
+            editor.deleteLater()
+            self.update_active_rules_summary()
+    
+    def update_active_rules_summary(self):
+        """Update the summary showing which rules are active"""
+        active_rules = []
+        empty_count = 0
+        
+        for editor in self.rule_editors:
+            rule_text = editor.text().strip()
+            if rule_text:
+                # Truncate long rules for display
+                display_text = rule_text if len(rule_text) <= 60 else rule_text[:57] + "..."
+                active_rules.append(f"  • {display_text}")
+            else:
+                empty_count += 1
+        
+        if active_rules:
+            summary_text = f"<b>✓ {len(active_rules)} Active Rule(s)</b> - These ROM tags will be REJECTED:<br>"
+            summary_text += "<br>".join(active_rules)
+            if empty_count > 0:
+                summary_text += f"<br><br><i>({empty_count} empty rule slot(s))</i>"
+        else:
+            summary_text = "<b>⚠ No Active Rules</b> - All custom filtering is currently disabled.<br><i>Add rules above to filter out unwanted ROM versions.</i>"
+        
+        self.active_rules_label.setText(summary_text)
+    
     def save_settings(self):
         """Save all settings and close dialog"""
         # Region priorities
@@ -214,21 +324,17 @@ class SettingsDialog(QDialog):
         self.settings.set_value('RegionPriority', 'world_priority', self.world_spin.value())
         self.settings.set_value('RegionPriority', 'english_priority', self.english_spin.value())
         
-        # Filtering options
-        self.settings.set_value('Filtering', 'reject_japan_only', self.reject_japan_check.isChecked())
-        self.settings.set_value('Filtering', 'reject_single_country', self.reject_country_check.isChecked())
-        self.settings.set_value('Filtering', 'reject_beta', self.reject_beta_check.isChecked())
-        self.settings.set_value('Filtering', 'reject_prototype', self.reject_proto_check.isChecked())
-        self.settings.set_value('Filtering', 'reject_alpha', self.reject_alpha_check.isChecked())
-        self.settings.set_value('Filtering', 'reject_demo', self.reject_demo_check.isChecked())
-        self.settings.set_value('Filtering', 'reject_virtual_console', self.reject_vc_check.isChecked())
-        self.settings.set_value('Filtering', 'reject_alt_versions', self.reject_alt_check.isChecked())
-        self.settings.set_value('Filtering', 'reject_revisions', self.reject_rev_check.isChecked())
-        self.settings.set_value('Filtering', 'reject_samples', self.reject_sample_check.isChecked())
-        
-        # Advanced
+        # Region filtering
         self.settings.set_value('AcceptableRegions', 'regions', self.acceptable_regions.text())
         self.settings.set_value('RejectedCountries', 'countries', self.rejected_countries.text())
+        self.settings.set_value('RejectedCountries', 'reject_when_alone', self.reject_country_check.isChecked())
+        
+        # Custom rejection rules
+        self.settings.config['CustomRejectRules'] = {}
+        for idx, editor in enumerate(self.rule_editors, start=1):
+            rule_text = editor.text().strip()
+            if rule_text:  # Only save non-empty rules
+                self.settings.set_value('CustomRejectRules', f'rule_{idx}', rule_text)
         
         self.settings.save_settings()
         self.accept()
@@ -366,30 +472,15 @@ class ROMMatcherWorker(QThread):
         # Extract all parentheses content
         parentheses = re.findall(r'\([^)]+\)', filename_lower)
         
-        # Build unwanted tags list based on settings
-        unwanted_tags = []
-        if self.settings.get_bool('Filtering', 'reject_beta'):
-            unwanted_tags.append('beta')
-        if self.settings.get_bool('Filtering', 'reject_prototype'):
-            unwanted_tags.extend(['proto', 'prototype'])
-        if self.settings.get_bool('Filtering', 'reject_alpha'):
-            unwanted_tags.append('alpha')
-        if self.settings.get_bool('Filtering', 'reject_demo'):
-            unwanted_tags.append('demo')
-        if self.settings.get_bool('Filtering', 'reject_virtual_console'):
-            unwanted_tags.extend(['switch online', 'wii u virtual console', 'wii virtual console', 'virtual console'])
-        if self.settings.get_bool('Filtering', 'reject_alt_versions'):
-            unwanted_tags.extend(['alt', 'alt 1', 'alt 2', 'alt 3'])
-        if self.settings.get_bool('Filtering', 'reject_revisions'):
-            unwanted_tags.extend(['rev ', 'rev 1', 'rev 2', 'v1.', 'v2.', 'v3.'])
-        if self.settings.get_bool('Filtering', 'reject_samples'):
-            unwanted_tags.extend(['sample', 'promo', 'unl', 'pirate', 'hack', 'homebrew'])
+        # Get all custom rejection rules from settings
+        custom_rules = self.settings.get_custom_reject_rules()
         
-        # Check for unwanted tags
+        # Check for unwanted tags based on custom rules
         for paren in parentheses:
-            for tag in unwanted_tags:
-                if tag in paren:
-                    return -1000  # Reject unwanted versions
+            for rule_tags in custom_rules:
+                for tag in rule_tags:
+                    if tag in paren:
+                        return -1000  # Reject if matches any custom rule
         
         # If there are 2+ parentheses, check if second one is valid
         if len(parentheses) >= 2:
@@ -404,7 +495,7 @@ class ROMMatcherWorker(QThread):
         rejected_countries = self.settings.get_list('RejectedCountries', 'countries', ['germany', 'france', 'spain', 'italy', 'japan'])
         
         # Check for single-country rejection
-        if self.settings.get_bool('Filtering', 'reject_single_country', True):
+        if self.settings.get_bool('RejectedCountries', 'reject_when_alone', True):
             # Check if ROM only has a rejected country and no acceptable regions
             has_rejected_country_only = False
             for country in rejected_countries:
