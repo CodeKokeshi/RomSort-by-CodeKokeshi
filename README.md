@@ -1,10 +1,10 @@
-# 🎮 RomSort
+# 🎮 RomSort by CodeKokeshi
 
 <div align="center">
 
-**An intelligent ROM file organizer with smart region-based matching**
+**Lightning-fast ROM organizer for RetroAchievements compatibility**
 
-*Automatically find and move the best ROM versions from massive collections*
+*Exact-match file finder - no fuzzy logic, no guesswork*
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
 [![PyQt6](https://img.shields.io/badge/PyQt6-6.4+-green.svg)](https://pypi.org/project/PyQt6/)
@@ -16,232 +16,205 @@
 
 ## ✨ Features
 
-### 🧠 Smart ROM Matching
-- **Symbol-insensitive** - Matches "Castlevania: Rondo" with "Castlevania - Rondo"
-- **Flexible name variants** - Handles subtitles, "The" prefix, partial names
-- **Fuzzy matching** - Finds ROMs even with slight name differences
-- **Word coverage scoring** - Prioritizes best title matches
+### ⚡ Exact Match Only
+- **Character-perfect matching** - No fuzzy logic, no approximations
+- **Extension-agnostic** - Matches `.sfc`, `.smc`, `.zip`, etc. automatically
+- **RetroAchievements optimized** - Built specifically for RA ROM lists
+- **Instant file indexing** - O(1) hash-based lookups for massive romsets
 
-### 🌍 Intelligent Region Priority System
-**Automatic preference order:**
-1. **Europe** - Highest priority (includes EU, Europe)
-2. **USA** - Second priority (includes US, USA)
-3. **World** - Third priority
-4. **English** - Fourth priority (includes En, English)
-5. **Rejects Japan-only** - Unless combined with acceptable regions
+### 🎯 Simple & Fast
+- **One-to-one matching** - If the name matches exactly (minus extension), it moves
+- **No complex settings** - No region priorities, no filtering rules
+- **Lightning fast** - Processes thousands of ROMs in seconds
+- **Real-time progress** - Multi-threaded with responsive UI
 
-### 🚫 Advanced Filtering
-**Automatically rejects unwanted versions:**
-- Beta, Prototype, Alpha, Demo
-- Virtual Console (Wii U, Wii, Switch Online)
-- Alt versions (Alt, Alt 1, Alt 2, Alt 3)
-- Revisions (Rev, Rev 1, V1.0, V2.0)
-- Samples, Promos, Hacks, Homebrew
-- Invalid second parentheses (e.g., `(USA) (Alt 2)`)
-
-### 📊 Detailed Results Display
-- Shows **exact file selected** and why
-- Lists **alternative candidates** with scores
-- Explains **rejections** (Japan-only, unwanted tags, etc.)
-- Displays **"not found"** reasons (no matches vs. all rejected)
-
-### ⚡ User-Friendly Interface
-- **Multi-threaded processing** - UI stays responsive
-- **Progress tracking** - Real-time status updates
-- **Batch processing** - Handle hundreds of ROMs at once
-- **Clear results** - Easy-to-read success/failure summary
+### 📊 Clear Results
+- Shows **moved files** with full filenames
+- Reports **not found** with similar candidates for debugging
+- Displays **failed moves** with error details
+- Complete **summary statistics** at the end
 
 ---
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.8+ (tested on Python 3.13)
-- Windows/macOS/Linux
+
+- Python 3.8 or higher
+- PyQt6
 
 ### Installation
 
 ```bash
-# Clone or download the repository
-cd RomSort
-
-# Create virtual environment (recommended)
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-source .venv/bin/activate  # macOS/Linux
+# Clone the repository
+git clone https://github.com/CodeKokeshi/RomSort-by-CodeKokeshi.git
+cd RomSort-by-CodeKokeshi
 
 # Install dependencies
 pip install -r requirements.txt
-```
 
-### Run
-
-```bash
+# Run the app
 python mass_file_mover.py
 ```
 
 ---
 
-## 🎮 How to Use
+## 📖 Usage Guide
 
-### 1️⃣ Select Directories
-- **Source Directory**: Folder containing all your ROM files
-- **Target Directory**: Where selected ROMs will be moved
+### Step-by-Step
 
-### 2️⃣ Enter ROM Names
-Type or paste ROM names in the text area (one per line):
+1. **Get your RA list** 
+   - Go to RetroAchievements and find your console
+   - Manually scrape the supported ROM names from game pages
+   - Copy the exact names (with or without trailing dots)
+
+2. **Select Source Directory**
+   - Choose folder with your complete romset (No-Intro, Redump, etc.)
+
+3. **Select Target Directory**
+   - Choose where matched ROMs should be moved
+
+4. **Paste ROM Names**
+   - Paste your RA list into the text area (one per line)
+   - Trailing dots are automatically handled
+
+5. **Start Processing**
+   - Click "Start Processing" and watch it work!
+
+### Example Input Format
+
 ```
-Super Metroid
-Castlevania: Rondo of Blood
-Bonk's Adventure
-Alien Crush
-Street Fighter II Turbo
+Super Mario World (USA).
+Legend of Zelda, The - A Link to the Past (USA).
+Super Metroid (Japan, USA) (En,Ja).
+Mega Man X (USA) (Rev 1).
+Kirby Super Star (USA)
 ```
 
-### 3️⃣ Process
-- Click **Start Processing**
-- Watch real-time progress
-- Review detailed results
-
-### 4️⃣ Check Results
-Results show:
-- ✓ Successfully moved files with exact filename
-- Alternative candidates considered
-- ✗ Not found with explanation
-- Summary statistics
+*Note: Both formats work - with or without trailing dots*
 
 ---
 
-## 🎯 Matching Examples
+## 🎯 How It Works
 
-### Example 1: Region Priority
-**Search:** `Super Metroid`
+### Matching Algorithm
 
-**Found:**
-- `Super Metroid (Europe) (En,Fr,De).zip` ← **SELECTED** (Europe priority)
-- `Super Metroid (Japan, USA) (En,Ja).zip` (score: 1696)
-- `Super Metroid (USA).zip` (score: 1046)
+```
+1. Build file index: "Super Mario World (USA).sfc" → "Super Mario World (USA)"
+2. Clean ROM name: "Super Mario World (USA)." → "Super Mario World (USA)"
+3. Exact match: "Super Mario World (USA)" == "Super Mario World (USA)" ✓
+4. Move file: Super Mario World (USA).sfc → Target Directory
+```
 
-### Example 2: Filtering Unwanted
-**Search:** `Bonk's Revenge`
+### What Gets Matched
 
-**Found:**
-- `Bonk's Revenge (USA).zip` ← **SELECTED** (clean version)
-- `Bonk's Revenge (USA) (Alt 2).zip` (rejected: Alt version)
-- `Bonk's Revenge (Europe) (Rev 1).zip` (rejected: Revision)
-
-### Example 3: Symbol Flexibility
-**Search:** `Dragon's Curse (Wonder Boy III)`
-
-**Matches:**
-- `Dragons Curse - Wonder Boy 3.zip` (punctuation ignored)
-- `Dragon's Curse (USA).zip` (exact match prioritized)
+| ROM Name (Input) | Filename (Source) | Match? |
+|---|---|---|
+| `Super Mario World (USA)` | `Super Mario World (USA).sfc` | ✅ Yes |
+| `Super Mario World (USA)` | `Super Mario World (USA).smc` | ✅ Yes |
+| `Super Mario World (USA)` | `Super Mario World (USA).zip` | ✅ Yes |
+| `Super Mario World (USA)` | `Super Mario World (Europe).sfc` | ❌ No |
+| `Super Mario World (USA)` | `Super Mario World (USA) (Rev 1).sfc` | ❌ No |
 
 ---
 
-## 🔍 Valid ROM Name Patterns
-
-### ✅ Accepted Formats
-```
-ROM NAME (Europe)
-ROM NAME (USA)
-ROM NAME (World)
-ROM NAME (Europe, USA)
-ROM NAME (Japan) (En)
-ROM NAME (Japan, USA)
-ROM NAME (En)
-ROM NAME (English)
-```
-
-### ❌ Rejected Formats
-```
-ROM NAME (Japan)                    # Japan-only
-ROM NAME (USA) (Alt 2)              # Alternative version
-ROM NAME (Europe) (Rev 1)           # Revision
-ROM NAME (World) (Wii Virtual Console)  # Virtual Console
-ROM NAME (USA) (Beta)               # Beta version
-```
-
----
-
-## 📦 Dependencies
+## 📊 Example Output
 
 ```
-PyQt6>=6.4.0
-```
+=== PROCESSING COMPLETE ===
 
----
+✓ MOVED: Super Mario World (USA)
+  └─ File: Super Mario World (USA).sfc
 
-## 🗂️ Project Structure
+✓ MOVED: Legend of Zelda, The - A Link to the Past (USA)
+  └─ File: Legend of Zelda, The - A Link to the Past (USA).smc
 
-```
-RomSort/
-├── mass_file_mover.py    # Main application
-├── requirements.txt      # Dependencies
-├── README.md            # You are here!
-└── .gitignore          # Git ignore rules
+✗ NOT FOUND: Mega Man X (USA) (Rev 1)
+  └─ Similar files found (but not exact matches):
+     • Mega Man X (USA)
+     • Mega Man X (USA) (Rev 2)
+     • Mega Man X2 (USA)
+
+✓ MOVED: Kirby Super Star (USA)
+  └─ File: Kirby Super Star (USA).sfc
+
+============================================================
+✓ Successfully moved: 3
+✗ Failed to move: 0
+✗ Not found: 1
+============================================================
 ```
 
 ---
 
-## 💡 Tips & Tricks
+## 🎮 Perfect for RetroAchievements
 
-### For Large Collections
-- Use the exact names you want (app handles variations)
-- Check "Other candidates" to see what else was available
-- Review rejected files to understand filtering
+### Why Use RomSort?
 
-### For Best Results
-- Use simple names (app handles subtitle matching)
-- Don't worry about punctuation (`:` vs `-` vs nothing)
-- Trust the region priority (Europe > USA > World > En)
+**The Problem:**
+- You download a 10GB No-Intro romset with 5,000+ games
+- Only ~500 have RetroAchievements support
+- Manually finding supported versions takes hours
 
-### Common Use Cases
-- **ROM Set Curation**: Extract only the best versions
-- **Multi-Region Collections**: Prioritize your preferred region
-- **Clean Duplicates**: Automatically skip Alt/Rev versions
+**The Solution:**
+1. Scrape RA's supported ROM names (5 minutes)
+2. Paste into RomSort (5 seconds)
+3. Get achievement-compatible collection (30 seconds)
+
+### Typical Workflow
+
+```
+1. Download complete SNES No-Intro set (~5,000 games)
+2. Visit RetroAchievements SNES page
+3. Copy supported game names from RA
+4. Paste into RomSort
+5. Get clean folder with ~500 RA-compatible ROMs
+6. Load into RetroArch and start earning achievements!
+```
 
 ---
 
-## 🤝 Contributing
+## 🛠️ Technical Details
 
-Contributions are welcome! Feel free to:
-- Report bugs or issues
-- Suggest feature improvements
-- Submit pull requests
+- **Language**: Python 3.8+
+- **GUI Framework**: PyQt6
+- **Threading**: QThread for non-blocking operations
+- **File Operations**: `shutil.move` with error handling
+- **Algorithm**: Hash-based O(1) file lookup
+- **Matching**: Extension-stripped exact string comparison
 
 ---
 
-## 📄 License
+## 📝 License
 
-MIT License - Free to use and modify
+MIT License - See [LICENSE](LICENSE) for details
 
 ---
 
 ## 👨‍💻 Author
 
-**CodeKokeshi** (Kokeshi Aikawa)
+**CodeKokeshi**
 
-- Other projects: 
-  - [Kokesynth](https://github.com/CodeKokeshi/Kokesynth) - 16-bit retro synthesizer
-  - [Kokesprite](https://github.com/CodeKokeshi/Kokesprite) - Pixel art editor
-  - [MeterSnap](https://github.com/CodeKokeshi/MeterSnap) - Screenshot utility
-- Style: Practical tools with intelligent automation
+Building tools for retro gaming enthusiasts 🕹️
 
 ---
 
-## 🎉 Acknowledgments
+## 🤝 Contributing
 
-- Inspired by the ROM preservation community
-- Built for retro gaming enthusiasts
-- Special thanks to No-Intro and Redump projects
+Issues and feature requests are welcome!
+
+Found a bug? [Open an issue](https://github.com/CodeKokeshi/RomSort-by-CodeKokeshi/issues)
+
+---
+
+## ⭐ Show Your Support
+
+If RomSort helped you build your achievement-compatible ROM collection, give it a ⭐️!
 
 ---
 
 <div align="center">
 
-**Happy ROM organizing! 🎮✨**
-
-*Let the algorithm find the best versions for you!*
+**Made with ❤️ for the RetroAchievements community**
 
 </div>
